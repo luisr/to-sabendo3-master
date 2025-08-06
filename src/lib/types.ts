@@ -7,20 +7,27 @@ export interface User {
   created_at: string;
 }
 
+// CORREÇÃO: A interface do Projeto agora reflete a estrutura real do banco de dados
 export interface Project {
   id: string;
   name: string;
   description?: string;
-  owner_id: string;
+  start_date?: string;
+  end_date?: string;
+  budget?: number;
+  // owner_id não parece ser usado, mas mantendo por consistência se necessário
+  owner_id?: string; 
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Task {
   id: string;
+  formatted_id?: string;
   name: string;
   description?: string;
   project_id: string;
-  project_name?: string; // Adicionado para a visão consolidada
+  project_name?: string;
   assignee_id?: string;
   assignee_name?: string;
   status_id: string;
@@ -30,11 +37,12 @@ export interface Task {
   start_date?: string;
   end_date?: string;
   progress?: number;
-  priority?: 'Baixa' | 'Média' | 'Alta' | 'Urgente';
+  priority?: 'Baixa' | 'Média' | 'Alta';
   created_at: string;
-  wbs_code: string;
+  wbs_code?: string;
   tags: Tag[];
   dependencies: string[];
+  custom_fields?: { [key: string]: any };
   subtasks?: Task[];
   observation?: string;
 }
@@ -42,35 +50,24 @@ export interface Task {
 export interface Tag {
     id: string;
     name: string;
+    color?: string;
 }
 
-export interface Observation {
+export interface TaskStatus {
     id: string;
-    task_id: string;
-    user_id: string;
-    content?: string;
-    file_url?: string;
-    created_at: string;
-    users: { 
-        name: string;
-        avatar_url?: string;
-    }
+    name: string;
+    color: string;
+    display_order: number;
 }
 
-// Definições para Linha de Base
-export interface Baseline {
+export interface Project {
   id: string;
-  project_id: string;
   name: string;
+  description?: string;
+  start_date?: string; // <-- Essencial
+  end_date?: string;   // <-- Essencial
+  budget?: number;     // <-- Essencial
+  owner_id?: string; 
   created_at: string;
-  created_by: string;
-  baseline_tasks: BaselineTask[]; // Aninhando as tarefas da linha de base
-}
-
-export interface BaselineTask {
-  id: string;
-  baseline_id: string;
-  original_task_id: string;
-  start_date: string;
-  end_date: string;
+  updated_at?: string;
 }

@@ -1,66 +1,66 @@
-
 "use client";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useToast } from './use-toast';
-import type { Project, Task } from '@/lib/types';
-
-interface AdminDashboardData {
-  kpis: {
-    total_projects: number;
-    total_budget: number;
-    overall_progress: number;
-    total_tasks: number;
-    completed_tasks: number;
-    tasks_at_risk: number;
-  };
-  recentProjects: Project[];
-  recentTasks: Task[];
-  tasksByStatus: { status_name: string; count: number }[];
+interface DashboardKpis {
+  total_budget?: number;
+  total_projects?: number;
+  total_tasks?: number;
+  completed_tasks?: number;
+  tasks_at_risk?: number;
+  overall_progress?: number;
 }
 
-export const useAdminDashboard = () => {
-  const [data, setData] = useState<AdminDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+interface AdminDashboardContextType {
+  kpis: DashboardKpis;
+  loading: boolean;
+  selectedProjectId: string | null;
+  setSelectedProjectId: (projectId: string | null) => void;
+  refetchKpis: () => void;
+}
+
+const AdminDashboardContext = createContext<AdminDashboardContextType | undefined>(undefined);
+
+export const AdminDashboardProvider = ({ children }: { children: ReactNode }) => {
+  const [kpis, setKpis] = useState<DashboardKpis>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>('consolidated');
   const { toast } = useToast();
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchKpis = useCallback(async () => {
     setLoading(true);
-    try {
-      console.log("Attempting to fetch admin dashboard data...");
-      
-      // Chamar a nova função RPC consolidada
-      const { data: dashboardData, error } = await supabase.rpc('get_manager_dashboard_data');
+    
+    const params = selectedProjectId === 'consolidated' || selectedProjectId === null 
+      ? {} 
+      : { p_project_id: selectedProjectId };
 
-      if (error) throw error;
+    const { data, error } = await supabase.rpc('get_dashboard_kpis', params);
 
-      // O resultado já é o objeto consolidado
-      const { kpis: kpisData, recentProjects: recentProjectsRes, recentTasks: recentTasksRes, tasksByStatus: tasksByStatusRes } = dashboardData;
-
-      setData({
-        kpis: kpisData,
-        recentProjects: recentProjectsRes.data,
-        recentTasks: recentTasksRes.data,
-        tasksByStatus: tasksByStatusRes.data,
-      });
-      console.log("Admin dashboard data fetched successfully.");
-
-    } catch (error: any) {
-      console.error("Error fetching admin dashboard data:", error);
-      toast({
-        title: "Erro ao carregar dados do dashboard",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    if (error) {
+      toast({ title: "Erro ao carregar KPIs", description: error.message, variant: "destructive" });
+      setKpis({});
+    } else {
+      setKpis(data || {});
     }
-  }, [toast]);
+    setLoading(false);
+  }, [selectedProjectId, toast]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    fetchKpis();
+  }, [fetchKpis]);
 
-  return { data, loading, refetch: fetchDashboardData };
+  return (
+    <AdminDashboardContext.Provider value={{ kpis, loading, selectedProjectId, setSelectedProjectId, refetchKpis: fetchKpis }}>
+      {children}
+    </AdminDashboardContext.Provider>
+  );
+};
+
+export const useAdminDashboard = () => {
+  const context = useContext(AdminDashboardContext);
+  if (context === undefined) {
+    throw new Error("useAdminDashboard must be used within a AdminDashboardProvider");
+  }
+  return context;
 };

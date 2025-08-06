@@ -21,11 +21,11 @@ import { MultiSelect } from "../shared/multi-select";
 interface EditTaskModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onTaskUpdate: (updatedData: Partial<Task>) => void; // Passa os dados atualizados
+  onTaskUpdate: (updatedData: Partial<Task>) => void;
   task: Task;
   statuses: TaskStatus[];
   users: User[];
-  tasks: Task[];
+  tasks: Task[]; // Lista de todas as tarefas para selecionar dependências
   tags: Tag[];
 }
 
@@ -43,6 +43,7 @@ export default function EditTaskModal({
     const { columns } = useTableSettings();
     const [taskData, setTaskData] = useState<Partial<Task> & { custom_fields?: any } | null>(null);
     const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+    const [selectedDependencyIds, setSelectedDependencyIds] = useState<string[]>([]); // Estado para dependências
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
     const originalTask = useMemo(() => task, [task]);
@@ -51,9 +52,12 @@ export default function EditTaskModal({
         if (isOpen && task) {
             setTaskData({ ...task, custom_fields: task.custom_fields || {} });
             setSelectedTagIds((task.tags || []).map(t => t.id));
+            // Inicializa o estado de dependências com os IDs da tarefa atual
+            setSelectedDependencyIds(task.dependencies || []);
         } else {
             setTaskData(null);
             setSelectedTagIds([]);
+            setSelectedDependencyIds([]);
         }
     }, [isOpen, task]);
 
@@ -89,7 +93,8 @@ export default function EditTaskModal({
     const handleSaveWithReason = async (reason: string = "") => {
         if (!taskData?.id) return;
         
-        const dataForUpdate: Partial<Task> & { tag_ids?: string[] } = {
+        // Constrói o objeto de atualização incluindo as dependências selecionadas
+        const dataForUpdate: Partial<Task> & { tag_ids?: string[]; dependencies?: string[] } = {
             name: taskData.name,
             description: taskData.description,
             assignee_id: taskData.assignee_id,
@@ -99,14 +104,13 @@ export default function EditTaskModal({
             start_date: taskData.start_date,
             end_date: taskData.end_date,
             parent_id: taskData.parent_id,
-            dependencies: (taskData.dependencies || []).map(d => typeof d === 'object' ? d.id : d),
+            dependencies: selectedDependencyIds, // Usa o estado atualizado
             custom_fields: taskData.custom_fields,
             tag_ids: selectedTagIds,
         };
         
-        onTaskUpdate(dataForUpdate); // Chama a função de atualização com os dados
+        onTaskUpdate(dataForUpdate);
         
-        // Se houver motivo, salva no histórico (opcional, dependendo da sua lógica de RPC)
         if (reason) {
            const { error } = await supabase.rpc('update_task_with_history', {
                 p_task_id: taskData.id,
@@ -132,8 +136,10 @@ export default function EditTaskModal({
         }
     };
     
-    const availableParentTasks = tasks.filter(t => t.id !== task?.id);
+    // Filtra a tarefa atual da lista de possíveis pais e dependências
+    const availableTasks = tasks.filter(t => t.id !== task?.id);
     const tagOptions = tags.map(tag => ({ value: tag.id, label: tag.name }));
+    const dependencyOptions = availableTasks.map(t => ({ value: t.id, label: `[${t.formatted_id}] ${t.name}` }));
     const customColumns = columns.filter(col => col.id.startsWith('custom_'));
 
     return (
@@ -141,7 +147,7 @@ export default function EditTaskModal({
             <Dialog open={isOpen} onOpenChange={onOpenChange}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>Editar Tarefa</DialogTitle>
+                        <DialogTitle>Editar Tarefa: {taskData?.name}</DialogTitle>
                         <DialogDescription>
                             Faça alterações na sua tarefa aqui. Clique em salvar quando terminar.
                         </DialogDescription>
@@ -151,6 +157,7 @@ export default function EditTaskModal({
                         <ScrollArea className="h-[60vh] p-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-4">
+                                    {/* Campos existentes... */}
                                     <div>
                                         <Label htmlFor="name">Nome da Tarefa</Label>
                                         <Input id="name" value={taskData.name || ''} onChange={(e) => handleInputChange('name', e.target.value)} />
@@ -175,6 +182,7 @@ export default function EditTaskModal({
                                     </div>
                                 </div>
                                 <div className="space-y-4">
+                                     {/* Campos existentes... */}
                                      <div>
                                         <Label htmlFor="assignee_id">Responsável</Label>
                                         <Select value={taskData.assignee_id || undefined} onValueChange={(value) => handleInputChange('assignee_id', value)}>
@@ -212,9 +220,19 @@ export default function EditTaskModal({
                                             <SelectTrigger><SelectValue placeholder="Selecione uma tarefa pai" /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="none">Nenhuma</SelectItem>
-                                                {availableParentTasks.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                                {availableTasks.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+                                    <div>
+                                        <Label>Dependências</Label>
+                                        <MultiSelect
+                                            options={dependencyOptions}
+                                            selected={selectedDependencyIds}
+                                            onChange={setSelectedDependencyIds}
+                                            placeholder="Selecione as dependências"
+                                            className="min-h-[40px]"
+                                        />
                                     </div>
                                      <div>
                                         <Label>Tags</Label>

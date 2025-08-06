@@ -1,7 +1,4 @@
-
 "use client";
-
-import { useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -19,31 +16,25 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useTableSettings } from "@/hooks/use-table-settings";
 import type { Task } from "@/lib/types";
 
 interface RecentTasksCardProps {
-  tasks: Task[]; // Expects tasks to be passed as a prop
+  tasks: Partial<Task>[]; // Usar Partial<Task> para acomodar os dados da RPC
 }
 
-export default function RecentTasksCard({ tasks }: RecentTasksCardProps) {
-    const { statuses } = useTableSettings();
+// Função para extrair as iniciais de um nome
+const getInitials = (name?: string | null) => {
+    if (!name) return 'N/A';
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
 
-    const recentTasks = useMemo(() => {
-        // The component now works with the tasks list it receives.
-        const allTasks = tasks || [];
-        // Sort by creation date and take the 5 most recent
-        return allTasks
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, 5);
-    }, [tasks]);
-
+export default function RecentTasksCard({ tasks = [] }: RecentTasksCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tarefas Recentes</CardTitle>
+        <CardTitle>Atividade Recente</CardTitle>
         <CardDescription>
-          As tarefas mais recentes adicionadas nos seus projetos.
+          As últimas tarefas criadas nos seus projetos.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -56,24 +47,40 @@ export default function RecentTasksCard({ tasks }: RecentTasksCardProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(recentTasks || []).map((task) => {
-              const status = (statuses || []).find(s => s.id === task.status_id);
-              return (
+            {tasks.length > 0 ? (
+              tasks.map((task) => (
                 <TableRow key={task.id}>
                   <TableCell>
                     <div className="font-medium">{task.name}</div>
+                    <div className="text-sm text-muted-foreground">{task.project_name}</div>
                   </TableCell>
                   <TableCell>
-                    {status && <Badge variant="outline">{status.name}</Badge>}
+                    {/* CORREÇÃO: Usa os dados pré-carregados 'status_name' e 'status_color' */}
+                    {task.status_name && (
+                        <Badge 
+                            style={{ backgroundColor: task.status_color, color: 'white' }} 
+                            className="border-transparent"
+                        >
+                            {task.status_name}
+                        </Badge>
+                    )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Avatar className="h-8 w-8 inline-flex">
-                      <AvatarFallback>{task.assignee_id?.substring(0,2).toUpperCase() || 'N/A'}</AvatarFallback>
+                  <TableCell className="text-right flex justify-end items-center gap-2">
+                    <span className="text-sm text-muted-foreground">{task.assignee_name || 'Não atribuído'}</span>
+                    <Avatar className="h-8 w-8">
+                        {/* CORREÇÃO: Usa as iniciais do 'assignee_name' */}
+                        <AvatarFallback>{getInitials(task.assignee_name)}</AvatarFallback>
                     </Avatar>
                   </TableCell>
                 </TableRow>
-              )
-            })}
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                  Nenhuma atividade recente.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>
